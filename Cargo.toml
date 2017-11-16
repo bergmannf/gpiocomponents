@@ -1,0 +1,7 @@
+[package]
+name = "gpiocomponents"
+version = "0.1.0"
+authors = ["Florian Bergmann <fbergmann@suse.de>"]
+
+[dependencies]
+sysfs_gpio = "0.5"
