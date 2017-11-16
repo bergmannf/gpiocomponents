@@ -1,14 +1,17 @@
 extern crate sysfs_gpio;
 
 use sysfs_gpio::Direction;
+use sysfs_gpio::Edge;
 use sysfs_gpio::Pin;
 use sysfs_gpio::Error;
+use std::option::Option;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use std::thread::sleep;
 
 const SECOND_IN_NANOS: u64 = 1_000_000_000;
+const MILLISECONDS_IN_NANOS: u64 = 1_000_000;
 const SPEED_OF_SOUND: u64 = 340; // (m / s)
 const SPEED_OF_SOUND_CM: u64 = SPEED_OF_SOUND * 100; // (cm / s)
 
@@ -48,6 +51,7 @@ impl Sonar {
             echo.export()?;
         };
         echo.set_direction(Direction::In)?;
+        echo.set_edge(Edge::BothEdges)?;
         if !trigger.is_exported() {
             trigger.export()?;
         }
@@ -60,47 +64,42 @@ impl Sonar {
         })
     }
 
-    fn await_reading(&self, activation_level: u8) -> u64 {
+    fn await_reading(&self, activation_level: u8) -> Option<u64> {
         let mut start_time = SystemTime::now();
-        while {
-            match self.echo.get_value() {
-                Ok(v) => v != activation_level,
-                Err(_) => false,
-            }
-        }
-        {
-            if {
-                match SystemTime::now().duration_since(start_time) {
-                    Ok(t) => t > self.timeout,
-                    Err(_) => false,
+        let timeout_ms = (f64::ceil(self.timeout.to_nanos() as f64 / MILLISECONDS_IN_NANOS as f64)) as isize;
+        println!("Waiting for {:?}", timeout_ms);
+        let mut poller = self.echo.get_poller().unwrap();
+        match poller.poll(timeout_ms) {
+            Ok(v) => match v {
+                Some(p) => if p != activation_level {
+                    println!("Did not receive right signal 1.");
+                    return None
+                }
+                None => {
+                    println!("Did not receive any signal 1.");
+                    return None
                 }
             }
-            {
-                return 0;
-            }
-        }
+            Err(_) => return None,
+        };
         start_time = SystemTime::now();
-        while {
-            match self.echo.get_value() {
-                Ok(v) => v == activation_level,
-                Err(_) => false,
-            }
-        }
-        {
-            if {
-                match SystemTime::now().duration_since(start_time) {
-                    Ok(t) => t > self.timeout,
-                    Err(_) => false,
+        match poller.poll(timeout_ms) {
+            Ok(v) => match v {
+                Some(p) => if p == activation_level {
+                    println!("Did not receive right signal 2.");
+                    return None
+                }
+                None => {
+                    println!("Did not receive any signal 1.");
+                    return None
                 }
             }
-            {
-                return 0;
-            }
-        }
+            Err(_) => return None,
+        };
         let pulse_time = SystemTime::now();
         match pulse_time.duration_since(start_time) {
-            Ok(t) => t.to_nanos(),
-            Err(_) => 0,
+            Ok(t) => Some(t.to_nanos()),
+            Err(_) => None,
         }
     }
 
@@ -111,7 +110,9 @@ impl Sonar {
         sleep(Duration::new(0, 10000));
         self.trigger.set_value(0);
         let ping_time = self.await_reading(1);
-        let distance = (ping_time as f64 / SECOND_IN_NANOS as f64) * SPEED_OF_SOUND_CM as f64 / 2.0;
-        distance
+        match ping_time {
+            Some(t) => (t as f64 / SECOND_IN_NANOS as f64) * SPEED_OF_SOUND_CM as f64 / 2.0,
+            None => -1.0,
+        }
     }
 }
