@@ -100,14 +100,17 @@ impl Sonar {
 
     /// Return the distance in centimeters that was measured by the sensor.
     /// If there was no distance measured the result will be None.
-    pub fn pulse(&self) -> f64 {
+    pub fn pulse(&self) -> Option<f64> {
         self.trigger.set_value(1);
         sleep(Duration::new(0, 10000));
         self.trigger.set_value(0);
         let ping_time = self.await_reading(1);
         match ping_time {
-            Some(t) => (t as f64 / SECOND_IN_NANOS as f64) * SPEED_OF_SOUND_CM as f64 / 2.0,
-            None => -1.0,
+            Some(t) => {
+                let cms = (t as f64 / SECOND_IN_NANOS as f64) * SPEED_OF_SOUND_CM as f64 / 2.0;
+                Some(cms)
+            }
+            None => None,
         }
     }
 }
