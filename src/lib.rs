@@ -1,5 +1,5 @@
 extern crate sysfs_gpio;
 
-mod sonar;
+pub mod sonar;
 
-mod ledbar;
+pub mod ledbar;
