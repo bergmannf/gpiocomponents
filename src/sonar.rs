@@ -67,16 +67,13 @@ impl Sonar {
     fn await_reading(&self, activation_level: u8) -> Option<u64> {
         let mut start_time = SystemTime::now();
         let timeout_ms = (f64::ceil(self.timeout.to_nanos() as f64 / MILLISECONDS_IN_NANOS as f64)) as isize;
-        println!("Waiting for {:?}", timeout_ms);
         let mut poller = self.echo.get_poller().unwrap();
         match poller.poll(timeout_ms) {
             Ok(v) => match v {
                 Some(p) => if p != activation_level {
-                    println!("Did not receive right signal 1.");
                     return None
                 }
                 None => {
-                    println!("Did not receive any signal 1.");
                     return None
                 }
             }
@@ -86,11 +83,9 @@ impl Sonar {
         match poller.poll(timeout_ms) {
             Ok(v) => match v {
                 Some(p) => if p == activation_level {
-                    println!("Did not receive right signal 2.");
                     return None
                 }
                 None => {
-                    println!("Did not receive any signal 1.");
                     return None
                 }
             }
